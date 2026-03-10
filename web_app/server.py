@@ -150,25 +150,30 @@ def api_me():
 # ── Video feed ────────────────────────────────────────────────────────────────
 
 def _mjpeg():
-    no_frame_count = 0
+    _start_time = time.time()
+    _INIT_WINDOW = 45  # seconds to show "initialising" before declaring failure
     while True:
         with _frame_lock: frame = _latest_frame
         if frame is None:
-            no_frame_count += 1
-            frame = np.zeros((360,640,3), np.uint8)
-            if no_frame_count < 50:
-                cv2.putText(frame, 'Camera initialising...', (150,180),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (80,80,80), 2)
+            frame = np.zeros((360, 640, 3), np.uint8)
+            elapsed = time.time() - _start_time
+            if elapsed < _INIT_WINDOW:
+                # Animate dots so the user knows something is happening
+                dots = '.' * (1 + int(elapsed) % 3)
+                cv2.putText(frame, f'Camera initialising{dots}', (120, 165),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.85, (120, 120, 120), 2)
+                cv2.putText(frame, f'({int(elapsed)}s)', (290, 205),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (90, 90, 90), 1)
             else:
-                cv2.putText(frame, 'Camera not available', (120,170),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (100,100,255), 2)
-                cv2.putText(frame, 'Check: drivers, permissions, USB', (40,220),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (100,100,255), 1)
-        else:
-            no_frame_count = 0
+                cv2.putText(frame, 'Camera not available', (115, 160),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (80, 80, 220), 2)
+                cv2.putText(frame, 'Check: camera connected & not in use', (30, 205),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.48, (80, 80, 220), 1)
+                cv2.putText(frame, 'Restart the app if camera was busy', (50, 230),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (80, 80, 220), 1)
         _, jpg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpg.tobytes() + b'\r\n'
-        time.sleep(1/25)
+        time.sleep(1 / 25)
 
 @app.route('/api/video_feed')
 def video_feed():

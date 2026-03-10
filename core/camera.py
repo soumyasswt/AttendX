@@ -17,6 +17,7 @@ dropped (newest-frame policy) rather than queuing forever.
 
 from __future__ import annotations
 
+import platform
 import threading
 import time
 from queue import Empty, Full, Queue
@@ -27,6 +28,8 @@ import numpy as np
 from loguru import logger
 
 from config.settings import AppConfig
+
+_IS_WINDOWS = platform.system() == "Windows"
 
 
 class FrameBuffer:
@@ -161,26 +164,61 @@ class CameraCapture:
     # ------------------------------------------------------------------ #
 
     def _open_camera(self) -> None:
-        """Open cv2.VideoCapture with the configured parameters."""
-        cap = cv2.VideoCapture(self._cam_cfg.device_id)
-        if not cap.isOpened():
+        """Open cv2.VideoCapture with the configured parameters.
+
+        On Windows the default MSMF backend often opens successfully but
+        returns False on every cap.read().  We therefore try DirectShow
+        (CAP_DSHOW) first, verify it can actually deliver a frame, and only
+        fall back to the default backend if DSHOW fails entirely.
+        """
+        device = self._cam_cfg.device_id
+
+        def _try_backend(backend_id: int, name: str) -> Optional[cv2.VideoCapture]:
+            """Try to open *device* with *backend_id*; return cap or None."""
+            try:
+                cap = cv2.VideoCapture(device + backend_id)
+            except Exception as e:
+                logger.debug("Backend {} unavailable: {}", name, e)
+                return None
+            if not cap.isOpened():
+                cap.release()
+                return None
+            # Apply settings before probing
+            try:
+                fourcc = cv2.VideoWriter_fourcc(*self._cam_cfg.fourcc)
+                cap.set(cv2.CAP_PROP_FOURCC, fourcc)
+            except Exception:
+                pass
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._cam_cfg.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._cam_cfg.height)
+            cap.set(cv2.CAP_PROP_FPS, self._cam_cfg.fps)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, self._cam_cfg.buffer_size)
+            # Probe: try up to 5 reads to confirm frames actually come through
+            for _ in range(5):
+                ret, _ = cap.read()
+                if ret:
+                    logger.debug("Backend {} probe succeeded", name)
+                    return cap
+            logger.debug("Backend {} opened but no frames; discarding", name)
+            cap.release()
+            return None
+
+        cap: Optional[cv2.VideoCapture] = None
+
+        if _IS_WINDOWS:
+            # On Windows, DirectShow is the reliable backend for USB/built-in cams
+            cap = _try_backend(cv2.CAP_DSHOW, "DSHOW")
+            if cap is None:
+                logger.warning("CAP_DSHOW failed; falling back to default backend")
+                cap = _try_backend(0, "default")
+        else:
+            cap = _try_backend(0, "default")
+
+        if cap is None:
             raise RuntimeError(
-                f"Cannot open camera device {self._cam_cfg.device_id}"
+                f"Cannot open camera device {device} — no backend produced frames"
             )
 
-        # Apply preferred codec (MJPG gives max FPS on USB cams)
-        try:
-            fourcc = cv2.VideoWriter_fourcc(*self._cam_cfg.fourcc)
-            cap.set(cv2.CAP_PROP_FOURCC, fourcc)
-        except Exception:
-            pass  # Ignore if codec not supported
-
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._cam_cfg.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._cam_cfg.height)
-        cap.set(cv2.CAP_PROP_FPS, self._cam_cfg.fps)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, self._cam_cfg.buffer_size)
-
-        # Verify actual resolution (camera may not support requested)
         actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         actual_fps = cap.get(cv2.CAP_PROP_FPS)
@@ -197,43 +235,53 @@ class CameraCapture:
         """Background thread: read frames and push to queue."""
         self._last_fps_time = time.time()
         logger.debug("Capture loop started")
-        consecutive_failures = 0
-        max_consecutive_failures = 100
+        consecutive_read_failures = 0
+        max_read_failures = 30          # try reopen after 30 bad reads (~1.5 s)
+        max_reopen_attempts = 5
+        reopen_attempts = 0
 
         while self._running:
             if self._cap is None or not self._cap.isOpened():
-                logger.error("Camera lost; attempting to reopen...")
+                logger.error("Camera lost; attempting to reopen (attempt {}/{})…",
+                             reopen_attempts + 1, max_reopen_attempts)
                 try:
                     if self._cap:
                         self._cap.release()
+                        self._cap = None
                     self._open_camera()
                     logger.info("Camera reopened successfully")
-                    consecutive_failures = 0
+                    consecutive_read_failures = 0
+                    reopen_attempts = 0
                 except Exception as e:
-                    consecutive_failures += 1
-                    logger.warning(
-                        "Failed to reopen camera (attempt {}): {}",
-                        consecutive_failures, e
-                    )
-                    if consecutive_failures >= max_consecutive_failures:
-                        logger.error("Too many camera reopening failures; giving up")
+                    reopen_attempts += 1
+                    logger.warning("Reopen attempt {} failed: {}", reopen_attempts, e)
+                    if reopen_attempts >= max_reopen_attempts:
+                        logger.error("All reopen attempts exhausted; giving up on camera")
                         self._running = False
                         break
-                    time.sleep(1)
+                    time.sleep(2)
                     continue
 
             ret, frame = self._cap.read()
             if not ret:
-                consecutive_failures += 1
-                if consecutive_failures % 20 == 0:  # Log every 20 failures
+                consecutive_read_failures += 1
+                # Log occasionally so the log doesn't fill up
+                if consecutive_read_failures == 1 or consecutive_read_failures % 10 == 0:
                     logger.warning(
-                        "cap.read() failed ({} consecutive); camera may be disconnected",
-                        consecutive_failures
+                        "cap.read() failed; retrying in 50ms",
                     )
-                if consecutive_failures >= max_consecutive_failures:
-                    logger.error("Camera read failed too many times; stopping")
-                    self._running = False
-                    break
+                if consecutive_read_failures >= max_read_failures:
+                    logger.error(
+                        "cap.read() failed {} times consecutively; releasing and reopening device",
+                        consecutive_read_failures
+                    )
+                    # Force a reopen on the next loop iteration
+                    if self._cap:
+                        self._cap.release()
+                        self._cap = None
+                    consecutive_read_failures = 0
+                    time.sleep(1)
+                    continue
                 time.sleep(0.05)
                 continue
             

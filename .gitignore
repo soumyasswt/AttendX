@@ -1,15 +1,45 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyd
+*.pyo
+*.pyw
+*.pyz
+*.spec
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Database (local data — not committed)
+data/*.db
+data/*.db-wal
+data/*.db-shm
 *.sqlite3
 
-# Local database and logs
-/data/*.db
-/data/*.db-* 
-/logs/
+# Logs
+logs/
 
-# Environment
+# Uploads (user photos — not committed)
+uploads/
+
+# InsightFace models (downloaded on first run, ~300 MB)
+models/
+.insightface/
+
+# Environment secrets
 .env
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Editor
 .vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

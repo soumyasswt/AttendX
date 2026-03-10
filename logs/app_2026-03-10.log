@@ -1293,3 +1293,70 @@
 2026-03-10 16:37:05.752 | DEBUG    | vision.tracker:update:285 - New track created: id=6
 2026-03-10 16:37:59.388 | DEBUG    | vision.tracker:update:285 - New track created: id=7
 2026-03-10 16:38:00.125 | DEBUG    | vision.tracker:update:285 - New track created: id=8
+2026-03-10 16:39:38.301 | DEBUG    | vision.tracker:update:285 - New track created: id=9
+2026-03-10 16:40:01.559 | DEBUG    | vision.tracker:update:285 - New track created: id=10
+2026-03-10 16:40:57.219 | DEBUG    | vision.tracker:update:285 - New track created: id=11
+2026-03-10 16:42:13.149 | DEBUG    | vision.tracker:update:285 - New track created: id=12
+2026-03-10 16:42:29.501 | DEBUG    | vision.tracker:update:285 - New track created: id=13
+2026-03-10 16:42:50.975 | DEBUG    | vision.tracker:update:285 - New track created: id=14
+2026-03-10 16:42:59.972 | DEBUG    | vision.tracker:update:285 - New track created: id=15
+2026-03-10 16:43:01.591 | DEBUG    | vision.tracker:update:285 - New track created: id=16
+2026-03-10 16:43:37.138 | DEBUG    | vision.tracker:update:285 - New track created: id=17
+2026-03-10 16:43:37.565 | DEBUG    | vision.tracker:update:285 - New track created: id=18
+2026-03-10 16:43:40.841 | DEBUG    | vision.tracker:update:285 - New track created: id=19
+2026-03-10 16:43:48.767 | DEBUG    | vision.tracker:update:285 - New track created: id=20
+2026-03-10 16:44:08.128 | DEBUG    | vision.tracker:update:285 - New track created: id=21
+2026-03-10 16:44:29.338 | DEBUG    | vision.tracker:update:285 - New track created: id=22
+2026-03-10 16:45:01.440 | DEBUG    | vision.tracker:update:285 - New track created: id=23
+2026-03-10 16:45:10.876 | DEBUG    | vision.tracker:update:285 - New track created: id=24
+2026-03-10 16:45:55.167 | DEBUG    | vision.tracker:update:285 - New track created: id=25
+2026-03-10 16:46:30.966 | DEBUG    | vision.tracker:update:285 - New track created: id=26
+2026-03-10 16:46:37.725 | DEBUG    | vision.tracker:update:285 - New track created: id=27
+2026-03-10 16:47:16.808 | DEBUG    | vision.tracker:update:285 - New track created: id=28
+2026-03-10 16:47:43.775 | DEBUG    | vision.tracker:update:285 - New track created: id=29
+2026-03-10 16:47:55.037 | DEBUG    | vision.tracker:update:285 - New track created: id=30
+2026-03-10 16:48:15.186 | DEBUG    | vision.tracker:update:285 - New track created: id=31
+2026-03-10 16:48:27.512 | DEBUG    | vision.tracker:update:285 - New track created: id=32
+2026-03-10 16:48:59.728 | DEBUG    | vision.tracker:update:285 - New track created: id=33
+2026-03-10 16:49:01.667 | DEBUG    | vision.tracker:update:285 - New track created: id=34
+2026-03-10 16:49:02.070 | DEBUG    | vision.tracker:update:285 - New track created: id=35
+2026-03-10 16:49:30.340 | DEBUG    | vision.tracker:update:285 - New track created: id=36
+2026-03-10 16:49:30.735 | DEBUG    | vision.tracker:update:285 - New track created: id=37
+2026-03-10 16:49:37.959 | DEBUG    | vision.tracker:update:285 - New track created: id=38
+2026-03-10 16:56:17.334 | DEBUG    | vision.tracker:update:285 - New track created: id=39
+2026-03-10 16:56:26.317 | DEBUG    | vision.tracker:update:285 - New track created: id=40
+2026-03-10 17:00:42.748 | DEBUG    | vision.tracker:update:285 - New track created: id=41
+2026-03-10 17:00:49.014 | DEBUG    | vision.tracker:update:285 - New track created: id=42
+2026-03-10 17:01:02.696 | DEBUG    | vision.tracker:update:285 - New track created: id=43
+2026-03-10 17:01:15.196 | DEBUG    | vision.tracker:update:285 - New track created: id=44
+2026-03-10 17:02:39.698 | DEBUG    | vision.tracker:update:285 - New track created: id=45
+2026-03-10 17:02:40.534 | DEBUG    | vision.tracker:update:285 - New track created: id=46
+2026-03-10 17:03:29.691 | DEBUG    | vision.tracker:update:285 - New track created: id=47
+2026-03-10 17:03:39.303 | DEBUG    | vision.tracker:update:285 - New track created: id=48
+2026-03-10 17:15:06.294 | INFO     | __main__:main:276 - Initialising database…
+2026-03-10 17:15:06.309 | SUCCESS  | __main__:main:278 - Database ready: C:\Users\Soumya\Downloads\attendx_platform_1\sas_v2\data\attendx.db
+2026-03-10 17:15:06.688 | INFO     | __main__:_start_cv:202 - Initialising face detection models…
+2026-03-10 17:15:06.997 | SUCCESS  | __main__:_start_flask:254 - AttendX → http://0.0.0.0:5000
+2026-03-10 17:15:14.539 | INFO     | vision.detector:initialize:102 - Loading InsightFace model pack 'buffalo_l'…
+2026-03-10 17:15:19.335 | SUCCESS  | vision.detector:initialize:116 - InsightFace initialized (det_size 320×320, CPU)
+2026-03-10 17:15:19.337 | SUCCESS  | recognition.embedder:initialize:86 - ArcFace embedder initialized (direct rec model)
+2026-03-10 17:15:19.522 | INFO     | recognition.searcher:_try_import:76 - FAISS backend available (IndexFlatIP, dim=512)
+2026-03-10 17:15:19.524 | WARNING  | __main__:_start_cv:225 - No enrolled faces — recognition will return 'Unknown'
+2026-03-10 17:15:20.188 | WARNING  | security.antispoofing:_init:222 - MediaPipe not available (module 'mediapipe' has no attribute 'solutions'); blink detection disabled
+2026-03-10 17:15:23.369 | DEBUG    | core.camera:_try_backend:200 - Backend DSHOW probe succeeded
+2026-03-10 17:15:23.371 | DEBUG    | core.camera:_open_camera:225 - Actual camera params: 1280x720 @30.00003000003fps
+2026-03-10 17:15:23.371 | DEBUG    | core.camera:_capture_loop:237 - Capture loop started
+2026-03-10 17:15:23.372 | INFO     | core.camera:start:116 - Camera capture started: device=0 res=1280x720 fps=30
+2026-03-10 17:15:23.374 | INFO     | core.pipeline:start:175 - Inference pipeline started
+2026-03-10 17:15:23.374 | SUCCESS  | __main__:_start_cv:241 - CV pipeline active ✓
+2026-03-10 17:15:24.524 | DEBUG    | vision.tracker:update:285 - New track created: id=1
+2026-03-10 17:17:18.904 | INFO     | recognition.searcher:add_faces_bulk:208 - Bulk loaded 1 face embeddings into search index
+2026-03-10 17:20:17.992 | DEBUG    | vision.tracker:update:285 - New track created: id=2
+2026-03-10 17:20:32.979 | DEBUG    | vision.tracker:update:285 - New track created: id=3
+2026-03-10 17:20:50.491 | DEBUG    | vision.tracker:update:285 - New track created: id=4
+2026-03-10 17:22:13.830 | DEBUG    | vision.tracker:update:285 - New track created: id=5
+2026-03-10 17:22:52.608 | DEBUG    | vision.tracker:update:285 - New track created: id=6
+2026-03-10 17:25:04.869 | DEBUG    | vision.tracker:update:285 - New track created: id=7
+2026-03-10 17:25:07.855 | DEBUG    | vision.tracker:update:285 - New track created: id=8
+2026-03-10 17:26:03.126 | DEBUG    | vision.tracker:update:285 - New track created: id=9
+2026-03-10 17:26:14.588 | DEBUG    | vision.tracker:update:285 - New track created: id=10
