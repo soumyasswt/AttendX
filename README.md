@@ -61,7 +61,7 @@ Then open **http://localhost:5000** in your browser.
 
 ---
 
-## 🔑 Demo Accounts
+## 🔑 Demo Accounts.
 
 | Role    | Email                    | Password  |
 |---------|--------------------------|-----------|
