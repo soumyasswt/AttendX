@@ -252,6 +252,7 @@ def _start_flask(db: DB, result_q: queue.Queue, host: str, port: int) -> None:
     uploads_dir = ROOT / 'uploads'
     init_server(db, result_q, uploads_dir)
     logger.success("AttendX → http://{}:{}", host, port)
+    # Turn off reloader to avoid issues with pywebview
     app.run(host=host, port=port, debug=False, threaded=True, use_reloader=False)
 
 
@@ -284,11 +285,42 @@ def main() -> None:
     cv_thread = threading.Thread(target=_start_cv, args=(db, result_q), daemon=True, name='CVPipeline')
     cv_thread.start()
 
-    # 4. Flask (blocks main thread)
-    # allow port configuration via environment (Render, Vercel, etc.)
-    host = os.environ.get('HOST','0.0.0.0')
+    # 4. Flask (now a daemon thread so it closes when webview closes)
+    host = os.environ.get('HOST','127.0.0.1')
     port = int(os.environ.get('PORT','5000'))
-    _start_flask(db, result_q, host, port)
+    
+    flask_thread = threading.Thread(
+        target=_start_flask, args=(db, result_q, host, port), 
+        daemon=True, name='FlaskServer'
+    )
+    flask_thread.start()
+
+    # Give Flask a moment to bind the port
+    import time
+    time.sleep(1)
+
+    # 5. Native Desktop Window (blocks main thread)
+    import sys
+    from PyQt6.QtCore import QUrl
+    from PyQt6.QtWidgets import QApplication, QMainWindow
+    from PyQt6.QtWebEngineWidgets import QWebEngineView
+
+    logger.info("Creating native desktop window with PyQt6…")
+    qt_app = QApplication(sys.argv)
+    
+    window = QMainWindow()
+    window.setWindowTitle("AttendX Platform")
+    window.resize(1200, 800)
+    window.setMinimumSize(900, 600)
+    
+    view = QWebEngineView()
+    view.setUrl(QUrl(f"http://{host}:{port}"))
+    window.setCentralWidget(view)
+    window.show()
+    
+    exit_code = qt_app.exec()
+    logger.info("Window closed. Exiting AttendX with code {}", exit_code)
+    sys.exit(exit_code)
 
 
 if __name__ == '__main__':
