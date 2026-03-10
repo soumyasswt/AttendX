@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: attendx-platform
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn web_app.server:app --bind 0.0.0.0:$PORT --workers 4"
+    healthCheckPath: "/"
+    autoDeploy: true
+    disk: 512

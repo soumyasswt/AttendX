@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+
+# Local database and logs
+/data/*.db
+/data/*.db-* 
+/logs/
+
+# Environment
+.env
+
+# Editor
+.vscode/

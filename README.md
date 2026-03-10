@@ -18,12 +18,35 @@ python main_web.py
 http://localhost:5000
 ```
 
+### Environment variables
+- `PORT` (default 5000) – allows hosts to specify port
+- `HOST` (default 0.0.0.0)
+- `DATABASE_PATH` (path to sqlite file; default `data/attendx.db`)
+
+### Deploying
+#### Render
+1. Connect your GitHub repo.
+2. Use `render.yaml` included here (auto-detected).
+3. Render will install dependencies, run migrations, and start with:
+   ```bash
+   gunicorn web_app.server:app --bind 0.0.0.0:$PORT --workers 4
+   ```
+
+#### Vercel
+This repo includes `vercel.json` to run the Flask app as a Python serverless function. After linking the repo in the Vercel dashboard:
+- Build command: `pip install -r requirements.txt`
+- Vercel will use `@vercel/python` to serve `web_app/server.py`.
+
+Alternatively you can deploy via Docker or use the Render service above for a full-featured server.
+
+The app binds to `$PORT` automatically and persists the SQLite DB at `DATABASE_PATH` (use a writable path on the host).
+
 ### Demo Accounts
 | Role    | Email                    | Password    |
 |---------|--------------------------|-------------|
-| Admin   | admin@school.edu         | admin123    |
-| Teacher | teacher@school.edu       | teacher123  |
-| Student | student@school.edu       | student123  |
+| Admin   | admin@school.edu         | admin       |
+| Teacher | teacher@school.edu       | teacher     |
+| Student | student@school.edu       | student     |
 
 ---
 

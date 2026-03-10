@@ -17,6 +17,7 @@ Demo accounts (auto-seeded):
 from __future__ import annotations
 import queue, sys, threading
 from pathlib import Path
+import os
 
 from loguru import logger
 
@@ -45,7 +46,9 @@ def _setup_log():
 # Database init + demo seeding
 # ─────────────────────────────────────────────────────────────────────────────
 def _init_db() -> DB:
-    db = DB(str(ROOT / 'data' / 'attendx.db'))
+    # allow custom database path for hosted environments
+    db_path = os.environ.get('DATABASE_PATH', str(ROOT / 'data' / 'attendx.db'))
+    db = DB(db_path)
     with db.tx() as c:
         c.executescript(SCHEMA)
         c.executescript(BRANCHES_SEED)
@@ -282,7 +285,10 @@ def main() -> None:
     cv_thread.start()
 
     # 4. Flask (blocks main thread)
-    _start_flask(db, result_q, '0.0.0.0', 5000)
+    # allow port configuration via environment (Render, Vercel, etc.)
+    host = os.environ.get('HOST','0.0.0.0')
+    port = int(os.environ.get('PORT','5000'))
+    _start_flask(db, result_q, host, port)
 
 
 if __name__ == '__main__':
