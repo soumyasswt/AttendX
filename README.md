@@ -11,8 +11,8 @@ AttendX is a full-featured multi-role attendance platform with **face recognitio
 ### 1 — Download
 
 ```bash
-git clone https://github.com/soumyasswt/Authface.git
-cd Authface
+git clone https://github.com/soumyasswt/AttendX.git
+cd AttendX
 ```
 
 Or click **Code → Download ZIP** on GitHub.
@@ -166,8 +166,8 @@ attendx/
 
 ```bash
 # 1. Clone
-git clone https://github.com/soumyasswt/Authface.git
-cd Authface
+git clone https://github.com/soumyasswt/AttendX.git
+cd AttendX
 
 # 2. Create and activate virtual environment
 python -m venv venv
