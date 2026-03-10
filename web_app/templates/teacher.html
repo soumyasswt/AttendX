@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AttendX — Teacher</title>
+<link rel="stylesheet" href="/static/css/app.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.attendance-active { background: rgba(12,175,96,0.05); }
+.attendance-absent  { background: rgba(229,57,53,0.04); }
+.camera-panel { position:relative; background:#000; border-radius:var(--radius); overflow:hidden; }
+.camera-panel img { width:100%; display:block; min-height:320px; object-fit:cover; }
+.cam-control-bar {
+  position:absolute; bottom:0; left:0; right:0;
+  background:linear-gradient(transparent,rgba(0,0,0,0.7));
+  padding:12px 16px; display:flex; align-items:center; gap:10px;
+}
+.face-tags { display:flex; flex-wrap:wrap; gap:6px; }
+.face-tag {
+  padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700;
+  display:flex; align-items:center; gap:4px; backdrop-filter:blur(4px);
+}
+.face-tag.known   { background:rgba(12,175,96,0.85); color:#fff; }
+.face-tag.unknown { background:rgba(229,57,53,0.8);  color:#fff; }
+.face-tag.low-conf{ background:rgba(245,166,35,0.85);color:#fff; }
+.cam-fps { margin-left:auto; color:rgba(255,255,255,0.7); font-size:10px; font-family:'DM Mono',monospace; }
+.presence-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+.dot-present { background:var(--green); box-shadow:0 0 5px rgba(12,175,96,0.5); }
+.dot-absent  { background:#E5E7EB; }
+.dot-late    { background:var(--amber); }
+.roster-search { width:100%; }
+.manual-check { width:16px;height:16px;accent-color:var(--primary);cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ════════ SIDEBAR ════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">🎓</div>
+    <div>
+      <div class="brand-name">AttendX</div>
+      <div class="brand-sub">Teacher Portal</div>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <span class="nav-label">My Classes</span>
+    <div class="nav-link active" data-page="overview"><span class="ni">⬡</span> Overview</div>
+    <div class="nav-link" data-page="attendance"><span class="ni">📷</span> Take Attendance</div>
+  </div>
+
+  <div class="nav-group">
+    <span class="nav-label">Records</span>
+    <div class="nav-link" data-page="roster"><span class="ni">📋</span> Class Roster</div>
+    <div class="nav-link" data-page="reports"><span class="ni">📊</span> Reports</div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="user-card" onclick="logout()">
+      <div class="avatar" id="sideAvatar">T</div>
+      <div class="user-meta">
+        <div class="u-name" id="sideName">Teacher</div>
+        <div class="u-role" id="sideBranch">Faculty</div>
+      </div>
+      <span style="margin-left:auto;color:var(--text-3);">→</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ════════ TOPBAR ════════ -->
+<header class="topbar">
+  <div class="page-title" id="pageTitle">Overview</div>
+  <div class="flex items-center gap-3" style="margin-left:auto;">
+    <select class="select-input" style="width:200px;" id="globalCourseSelect" onchange="onGlobalCourseChange()">
+      <option value="">Select Course</option>
+    </select>
+    <div class="icon-btn">🔔</div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<!-- ════════ MAIN ════════ -->
+<main class="main">
+
+<!-- ══ PAGE: Overview ══ -->
+<div id="page-overview">
+  <div class="stats-grid">
+    <div class="card stat-card">
+      <div class="stat-top"><div class="stat-icon icon-purple">📚</div></div>
+      <div class="stat-value" id="ov-courses">—</div>
+      <div class="stat-label">My Courses</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-top"><div class="stat-icon icon-blue">👥</div></div>
+      <div class="stat-value" id="ov-students">—</div>
+      <div class="stat-label">Total Students</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-top"><div class="stat-icon icon-green">✅</div></div>
+      <div class="stat-value" id="ov-present">—</div>
+      <div class="stat-label">Present Today</div>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <div class="section-title">My Assigned Courses</div>
+    <span class="text-sm text-muted" id="todayDateLabel"></span>
+  </div>
+
+  <div id="courseCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:24px;">
+    <div class="card card-body"><div class="empty"><span class="spinner"></span></div></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Attendance Trend (14 days)</span></div>
+      <div class="card-body" style="height:200px;"><canvas id="trendChartT"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Recent Recognitions</span></div>
+      <div id="recentRec" style="max-height:240px;overflow-y:auto;">
+        <div class="empty"><span class="spinner"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: Take Attendance (Camera) ══ -->
+<div id="page-attendance" style="display:none;">
+  <div class="section-head">
+    <div class="section-title">Live Attendance Capture</div>
+    <div class="flex gap-2 items-center">
+      <select class="select-input" style="width:220px;" id="camCourseSelect" onchange="onCamCourseChange()">
+        <option value="">Select a course…</option>
+      </select>
+      <span class="text-sm text-muted" id="camDateLabel"></span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Camera panel -->
+    <div>
+      <div class="camera-panel" id="cameraPanel">
+        <img src="/api/video_feed" id="liveFeed" alt="Live Camera"/>
+        <div class="cam-control-bar">
+          <div class="live-dot"></div>
+          <span class="live-label">LIVE</span>
+          <div class="face-tags" id="faceTags"></div>
+          <span class="cam-fps" id="camFps">— fps</span>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:12px;">
+        <div class="card-body">
+          <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Live Recognition Feed</div>
+          <div id="liveRecFeed" style="max-height:220px;overflow-y:auto;">
+            <div class="empty" style="padding:20px;">
+              <span style="font-size:24px;">👁</span>
+              <div style="margin-top:8px;font-size:12px;color:var(--text-3);">Select a course and start capturing</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Attendance register -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="rosterTitle">Attendance Register</span>
+        <div class="flex gap-2 items-center">
+          <span class="badge badge-green" id="presentCount">0 present</span>
+          <span class="badge badge-red" id="absentCount">0 absent</span>
+          <button class="btn btn-ghost btn-xs" onclick="downloadRegister()">📥</button>
+        </div>
+      </div>
+
+      <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
+        <input type="text" class="input roster-search" placeholder="Search by name or roll no…" oninput="filterRoster(this.value)"/>
+      </div>
+
+      <div class="table-wrap" style="max-height:460px;overflow-y:auto;">
+        <table>
+          <thead><tr>
+            <th style="width:36px;"></th>
+            <th>Roll No</th><th>Student Name</th>
+            <th>Entry</th><th>Conf</th><th>Status</th>
+            <th>Manual</th>
+          </tr></thead>
+          <tbody id="liveRosterBody">
+            <tr><td colspan="7"><div class="empty"><span class="e-icon">📋</span><div class="e-sub">Select a course to see roster</div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card-footer flex justify-between items-center">
+        <div>
+          <div class="progress" style="width:160px;">
+            <div class="progress-fill fill-green" id="attendancePct" style="width:0%"></div>
+          </div>
+          <div class="text-xs text-muted mt-1" id="attendancePctLabel">Select course to begin</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="refreshRoster()">↻ Refresh</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: Class Roster ══ -->
+<div id="page-roster" style="display:none;">
+  <div class="section-head">
+    <div class="section-title">Class Roster</div>
+    <div class="flex gap-2">
+      <select class="select-input" style="width:220px;" id="rosterCourseSelect" onchange="loadRoster()">
+        <option value="">Select course</option>
+      </select>
+      <input type="date" class="input" style="width:150px;" id="rosterDate" onchange="loadRoster()"/>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header" id="rosterCardHeader">
+      <span class="card-title">Select a course above</span>
+      <div class="flex gap-2" id="rosterActions" style="display:none!important;">
+        <button class="btn btn-success btn-sm" onclick="saveManualOverrides()">💾 Save Overrides</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadRosterCSV()">📥 CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Roll No</th><th>Student</th>
+          <th>Branch</th><th>Sem</th><th>Entry Time</th>
+          <th>Confidence</th><th>Liveness</th><th>Status</th><th>Source</th>
+          <th>Override</th>
+        </tr></thead>
+        <tbody id="fullRosterBody">
+          <tr><td colspan="11"><div class="empty"><span class="e-icon">📋</span><div class="e-sub">Select a course to view roster</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: Reports ══ -->
+<div id="page-reports" style="display:none;">
+  <div class="grid-2" style="margin-bottom:20px;">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Course Attendance Summary</span></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Course</th><th>Branch</th><th>Sem</th><th>Students</th><th>Avg %</th></tr></thead>
+          <tbody id="courseSummaryBody"><tr class="loading-row"><td colspan="5"><span class="spinner"></span></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Students Below 75%</span>
+        <span class="badge badge-red" id="lowAttCountT">—</span>
+      </div>
+      <div class="table-wrap" style="max-height:280px;overflow-y:auto;">
+        <table>
+          <thead><tr><th>Roll No</th><th>Name</th><th>Course</th><th>Att %</th></tr></thead>
+          <tbody id="lowAttBodyT"><tr class="loading-row"><td colspan="4"><span class="spinner"></span></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Export Attendance Data</span></div>
+    <div class="card-body flex gap-3">
+      <button class="btn btn-primary" onclick="exportReport()">📊 Export Excel</button>
+      <button class="btn btn-ghost" onclick="exportReport('csv')">📄 Export CSV</button>
+    </div>
+    <div id="exportMsg" style="padding:0 20px 16px;"></div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- Toast -->
+<div class="toast-stack" id="toastStack"></div>
+
+<!-- Manual Mark Modal -->
+<div class="modal-overlay" id="modal-manualMark">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <div class="modal-title">Manual Attendance Override</div>
+      <div class="modal-close" onclick="closeModal('manualMark')">✕</div>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mm-student-id"/>
+      <input type="hidden" id="mm-course-id"/>
+      <div style="padding:12px;background:var(--primary-soft);border-radius:8px;margin-bottom:16px;">
+        <div style="font-weight:600;" id="mm-student-name">Student Name</div>
+        <div class="text-sm text-muted" id="mm-student-roll">Roll No</div>
+      </div>
+      <div class="form-group">
+        <label class="input-label">Mark As</label>
+        <select class="select-input" id="mm-status">
+          <option value="PRESENT">✅ Present</option>
+          <option value="LATE">⏰ Late</option>
+          <option value="ABSENT">❌ Absent</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="input-label">Reason / Notes</label>
+        <input class="input" id="mm-notes" placeholder="Optional reason for override"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('manualMark')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitManualMark()">Save Override</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════════════
+let myCourses = [];
+let currentCourseId = null;
+let rosterData = [];
+let liveInterval = null;
+let trendChartT = null;
+
+// ═══════════════════════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  const me = await api('/api/auth/me');
+  if (me) {
+    document.getElementById('sideName').textContent = me.name || 'Teacher';
+    document.getElementById('sideAvatar').textContent = (me.name||'T')[0].toUpperCase();
+    document.getElementById('sideBranch').textContent = me.branch || 'Faculty';
+  }
+  document.getElementById('todayDateLabel').textContent = fmtDate(new Date());
+  document.getElementById('camDateLabel').textContent   = fmtDate(new Date());
+
+  await loadCourses();
+  loadOverview();
+}
+
+async function loadCourses() {
+  myCourses = await api('/api/teacher/courses') || [];
+  const opts = myCourses.map(c => `<option value="${c.id}">${c.code} — ${c.name} (Sem ${c.semester})</option>`).join('');
+  ['globalCourseSelect','camCourseSelect','rosterCourseSelect'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      const def = id==='globalCourseSelect' ? '<option value="">All Courses</option>' : '<option value="">Select course…</option>';
+      el.innerHTML = def + opts;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Navigation
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll('.nav-link[data-page]').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    switchPage(el.dataset.page);
+  });
+});
+
+function switchPage(name) {
+  document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display = 'none');
+  document.getElementById('page-' + name).style.display = '';
+  const titles = {overview:'Overview', attendance:'Take Attendance', roster:'Class Roster', reports:'Reports'};
+  document.getElementById('pageTitle').textContent = titles[name] || name;
+
+  if (name==='overview')    loadOverview();
+  if (name==='attendance') { startLive(); }
+  if (name==='roster')     { setDefaultRosterDate(); if(currentCourseId) loadRoster(); }
+  if (name==='reports')    loadReports();
+
+  if (name!=='attendance' && liveInterval) { clearInterval(liveInterval); liveInterval=null; }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Overview
+// ═══════════════════════════════════════════════════════════
+async function loadOverview() {
+  const [stats, trend, recent] = await Promise.all([
+    api('/api/teacher/stats'),
+    api('/api/teacher/analytics/trend?days=14'),
+    api('/api/teacher/attendance?from='+today()+'&to='+today()),
+  ]);
+
+  if (stats) {
+    document.getElementById('ov-courses').textContent  = stats.total_courses;
+    document.getElementById('ov-students').textContent = stats.total_students;
+    document.getElementById('ov-present').textContent  = stats.present_today;
+  }
+
+  renderCourseCards();
+
+  if (trend) {
+    const ctx = document.getElementById('trendChartT').getContext('2d');
+    if (trendChartT) trendChartT.destroy();
+    trendChartT = new Chart(ctx, {
+      type:'line',
+      data:{ labels:trend.map(d=>d.date.slice(5)),
+             datasets:[{label:'Present',data:trend.map(d=>d.count),borderColor:'#1A56DB',backgroundColor:'rgba(26,86,219,0.07)',tension:0.4,fill:true,pointRadius:2,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+               scales:{x:{grid:{color:'#F3F4F6'},ticks:{color:'#9CA3AF',font:{size:10}}},
+                       y:{grid:{color:'#F3F4F6'},ticks:{color:'#9CA3AF',font:{size:10}},beginAtZero:true}}}
+    });
+  }
+
+  if (recent) {
+    const el = document.getElementById('recentRec');
+    el.innerHTML = recent.slice(0,10).map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);">
+        <div class="presence-dot ${r.status==='LATE'?'dot-late':'dot-present'}"></div>
+        <div class="grow">
+          <div style="font-size:13px;font-weight:500;">${r.student_name}</div>
+          <div class="text-xs text-muted">${r.course_code} · ${(r.entry_time||'').slice(11,16)}</div>
+        </div>
+        ${statusBadge(r.status)}
+      </div>`).join('') || '<div class="empty" style="padding:24px;">No attendance today</div>';
+  }
+}
+
+function renderCourseCards() {
+  const el = document.getElementById('courseCards');
+  if (!myCourses.length) {
+    el.innerHTML = '<div class="card card-body"><div class="empty"><span class="e-icon">📚</span><div class="e-title">No courses assigned</div><div class="e-sub">Contact admin to assign courses</div></div></div>';
+    return;
+  }
+  el.innerHTML = myCourses.map(c => `
+    <div class="card card-body" style="cursor:pointer;" onclick="quickTakeAttendance(${c.id})">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--primary);margin-bottom:3px;">${c.code}</div>
+          <div style="font-size:14px;font-weight:700;">${c.name}</div>
+        </div>
+        <span class="badge badge-purple">Sem ${c.semester}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px;">${c.branch} · ${c.type||'Theory'}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <div class="progress" style="flex:1;">
+          <div class="progress-fill fill-green" style="width:${c.total_students ? Math.round((c.present_today||0)/c.total_students*100) : 0}%"></div>
+        </div>
+        <span class="text-sm text-bold">${c.present_today||0}/${c.total_students||0}</span>
+      </div>
+      <div class="text-xs text-muted">${c.total_students||0} enrolled · click to take attendance</div>
+    </div>`).join('');
+}
+
+function quickTakeAttendance(courseId) {
+  currentCourseId = courseId;
+  document.getElementById('camCourseSelect').value = courseId;
+  switchPage('attendance');
+  document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+  document.querySelector('[data-page="attendance"]').classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Live attendance capture
+// ═══════════════════════════════════════════════════════════
+function onGlobalCourseChange() {
+  currentCourseId = document.getElementById('globalCourseSelect').value || null;
+}
+
+function onCamCourseChange() {
+  currentCourseId = document.getElementById('camCourseSelect').value || null;
+  if (currentCourseId) loadLiveRoster();
+}
+
+function startLive() {
+  if (liveInterval) clearInterval(liveInterval);
+  if (currentCourseId) loadLiveRoster();
+  liveInterval = setInterval(() => {
+    loadLiveFaces();
+    if (currentCourseId) loadLiveRoster();
+  }, 3000);
+  loadLiveFaces();
+}
+
+async function loadLiveFaces() {
+  const faces = await api('/api/live/faces');
+  if (!faces) return;
+
+  const tags = document.getElementById('faceTags');
+  tags.innerHTML = faces.map(f => {
+    const cls = f.name==='Unknown' ? 'unknown' : f.confidence > 0.7 ? 'known' : 'low-conf';
+    return `<div class="face-tag ${cls}">${f.liveness?'●':'○'} ${f.name} ${(f.confidence*100).toFixed(0)}%</div>`;
+  }).join('');
+
+  const feed = document.getElementById('liveRecFeed');
+  if (faces.length) {
+    feed.innerHTML = faces.map(f => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);">
+        <div style="width:8px;height:8px;border-radius:50%;background:${f.liveness?'var(--green)':'var(--amber)'}; flex-shrink:0;"></div>
+        <div class="grow">
+          <div style="font-size:13px;font-weight:600;">${f.name}</div>
+          <div class="text-xs text-muted">Confidence: ${(f.confidence*100).toFixed(1)}% · ${f.liveness?'Liveness OK':'Checking liveness…'}</div>
+        </div>
+        ${f.event ? `<span class="badge badge-green">${f.event}</span>` : ''}
+      </div>`).join('');
+  } else {
+    feed.innerHTML = '<div class="empty" style="padding:20px;"><span style="font-size:20px;">👁</span><div style="margin-top:6px;font-size:12px;color:var(--text-3);">No faces in frame</div></div>';
+  }
+}
+
+async function loadLiveRoster() {
+  if (!currentCourseId) return;
+  const data = await api(`/api/teacher/roster?course_id=${currentCourseId}&date=${today()}`) || [];
+  rosterData = data;
+
+  const present = data.filter(s => s.entry_time).length;
+  const total   = data.length;
+  const pct     = total ? Math.round(present/total*100) : 0;
+
+  document.getElementById('presentCount').textContent = `${present} present`;
+  document.getElementById('absentCount').textContent  = `${total-present} absent`;
+  document.getElementById('attendancePct').style.width = pct + '%';
+  document.getElementById('attendancePctLabel').textContent = `${present} of ${total} present (${pct}%)`;
+
+  const crs = myCourses.find(c => c.id==currentCourseId);
+  if (crs) document.getElementById('rosterTitle').textContent = `${crs.code} — ${crs.name}`;
+
+  renderLiveRoster(data);
+}
+
+function renderLiveRoster(data) {
+  const tbody = document.getElementById('liveRosterBody');
+  tbody.innerHTML = data.map((s,i) => `<tr class="${s.entry_time?'attendance-active':'attendance-absent'}">
+    <td class="presence-dot" style="padding:0 12px;">
+      <div class="presence-dot ${s.entry_time ? (s.status==='LATE'?'dot-late':'dot-present') : 'dot-absent'}"></div>
+    </td>
+    <td class="td-mono">${s.roll_no}</td>
+    <td><div style="font-weight:500;">${s.name}</div></td>
+    <td class="td-mono text-sm">${s.entry_time ? s.entry_time.slice(11,16) : '—'}</td>
+    <td class="td-mono text-sm">${s.recognition_confidence ? (s.recognition_confidence*100).toFixed(0)+'%' : '—'}</td>
+    <td>${statusBadge(s.entry_time ? (s.status||'PRESENT') : 'ABSENT')}</td>
+    <td><button class="btn btn-ghost btn-xs" onclick="openManualMark(${s.id},'${s.name}','${s.roll_no}')">✏</button></td>
+  </tr>`).join('');
+}
+
+function filterRoster(q) {
+  const f = q.toLowerCase();
+  renderLiveRoster(f ? rosterData.filter(s => s.name.toLowerCase().includes(f) || s.roll_no.toLowerCase().includes(f)) : rosterData);
+}
+
+function refreshRoster() { loadLiveRoster(); }
+
+// ═══════════════════════════════════════════════════════════
+//  Full class roster
+// ═══════════════════════════════════════════════════════════
+function setDefaultRosterDate() {
+  document.getElementById('rosterDate').value = today();
+}
+
+async function loadRoster() {
+  const cid   = document.getElementById('rosterCourseSelect').value;
+  const dStr  = document.getElementById('rosterDate').value || today();
+  if (!cid) return;
+  currentCourseId = cid;
+  const crs = myCourses.find(c => c.id==cid);
+  const data = await api(`/api/teacher/roster?course_id=${cid}&date=${dStr}`) || [];
+  const header = document.getElementById('rosterCardHeader');
+  header.querySelector('.card-title').textContent = crs ? `${crs.code} — ${crs.name} · ${dStr}` : `Roster · ${dStr}`;
+  document.getElementById('rosterActions').style.display = 'flex';
+  const tbody = document.getElementById('fullRosterBody');
+  tbody.innerHTML = data.map((s,i) => `<tr class="${s.entry_time?'attendance-active':'attendance-absent'}">
+    <td class="text-muted text-sm">${i+1}</td>
+    <td class="td-mono">${s.roll_no}</td>
+    <td><div class="row-avatar">
+      <div class="avatar" style="width:28px;height:28px;font-size:11px;">${s.name[0]}</div>
+      <span style="font-weight:500;">${s.name}</span>
+    </div></td>
+    <td>${s.branch||'—'}</td>
+    <td>${s.semester||'—'}</td>
+    <td class="td-mono">${s.entry_time ? s.entry_time.slice(11,16) : '—'}</td>
+    <td class="td-mono">${s.recognition_confidence ? (s.recognition_confidence*100).toFixed(1)+'%' : '—'}</td>
+    <td class="td-mono">${s.liveness_score ? (s.liveness_score*100).toFixed(0)+'%' : '—'}</td>
+    <td>${statusBadge(s.entry_time ? (s.status||'PRESENT') : 'ABSENT')}</td>
+    <td><span class="badge ${s.marked_by==='MANUAL'?'badge-amber':'badge-gray'}">${s.marked_by||'AUTO'}</span></td>
+    <td>
+      <select class="select-input" style="width:110px;padding:5px 8px;font-size:11px;" id="ov-${s.id}" onchange="markDirty(${s.id})">
+        <option value="">No change</option>
+        <option value="PRESENT">Present</option>
+        <option value="LATE">Late</option>
+        <option value="ABSENT">Absent</option>
+      </select>
+    </td>
+  </tr>`).join('');
+}
+
+let dirtyOverrides = {};
+function markDirty(id) {
+  const val = document.getElementById(`ov-${id}`).value;
+  if (val) dirtyOverrides[id] = val; else delete dirtyOverrides[id];
+}
+
+async function saveManualOverrides() {
+  const cid = document.getElementById('rosterCourseSelect').value;
+  for (const [stu_id, status] of Object.entries(dirtyOverrides)) {
+    await api('/api/teacher/manual_mark','POST',{student_id:parseInt(stu_id),course_id:parseInt(cid),status});
+  }
+  dirtyOverrides = {};
+  toast('Overrides saved','✅');
+  loadRoster();
+}
+
+function downloadRosterCSV() { toast('Downloading roster…','📥'); }
+
+// ═══════════════════════════════════════════════════════════
+//  Reports
+// ═══════════════════════════════════════════════════════════
+async function loadReports() {
+  const data = await api('/api/teacher/courses') || [];
+  const tbody = document.getElementById('courseSummaryBody');
+  tbody.innerHTML = data.map(c => {
+    const pct = c.total_students ? Math.round((c.present_today||0)/c.total_students*100) : 0;
+    const fill = pct>=75?'fill-green':pct>=50?'fill-amber':'fill-red';
+    return `<tr>
+      <td><div style="font-weight:600;">${c.name}</div><div class="td-mono text-xs text-muted">${c.code}</div></td>
+      <td>${c.branch}</td>
+      <td>Sem ${c.semester}</td>
+      <td class="td-mono">${c.total_students||0}</td>
+      <td><div class="flex items-center gap-2">
+        <div class="progress" style="width:60px;"><div class="progress-fill ${fill}" style="width:${pct}%"></div></div>
+        <span class="td-mono text-sm">${pct}%</span>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  // Low attendance (sample)
+  document.getElementById('lowAttCountT').textContent = '—';
+  document.getElementById('lowAttBodyT').innerHTML = '<tr><td colspan="4"><div class="empty" style="padding:20px;">Analytics coming soon</div></td></tr>';
+}
+
+async function exportReport(fmt='excel') {
+  const res = await api(`/api/reports/export?format=${fmt}`);
+  const el = document.getElementById('exportMsg');
+  if (res?.ok) { el.innerHTML = `<span style="color:var(--green);font-size:13px;">✓ Saved: ${res.path}</span>`; toast('Exported!','📊'); }
+  else toast('Export failed','❌');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Manual mark modal
+// ═══════════════════════════════════════════════════════════
+function openManualMark(studentId, name, roll) {
+  if (!currentCourseId) { toast('Select a course first','⚠️'); return; }
+  document.getElementById('mm-student-id').value   = studentId;
+  document.getElementById('mm-course-id').value    = currentCourseId;
+  document.getElementById('mm-student-name').textContent = name;
+  document.getElementById('mm-student-roll').textContent = 'Roll: ' + roll;
+  openModal('manualMark');
+}
+
+async function submitManualMark() {
+  const res = await api('/api/teacher/manual_mark','POST',{
+    student_id: parseInt(document.getElementById('mm-student-id').value),
+    course_id:  parseInt(document.getElementById('mm-course-id').value),
+    status:     document.getElementById('mm-status').value,
+    notes:      document.getElementById('mm-notes').value,
+  });
+  if (res?.ok) { closeModal('manualMark'); loadLiveRoster(); toast('Override saved','✅'); }
+  else toast(res?.error||'Failed','❌');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Utils
+// ═══════════════════════════════════════════════════════════
+function today() { return new Date().toISOString().slice(0,10); }
+function fmtDate(d) { return d.toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
+function statusBadge(s) {
+  const m={PRESENT:'badge-green',LATE:'badge-amber',ABSENT:'badge-red'};
+  return `<span class="badge ${m[s]||'badge-gray'}">${s||'—'}</span>`;
+}
+
+function openModal(n)  { document.getElementById('modal-'+n).classList.add('open'); }
+function closeModal(n) { document.getElementById('modal-'+n).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
+
+function downloadRegister() { toast('Generating register…','📥'); }
+
+function toast(msg, icon='ℹ️', dur=3500) {
+  const s = document.getElementById('toastStack');
+  const d = document.createElement('div');
+  d.className='toast';
+  d.innerHTML=`<span class="t-icon">${icon}</span><div><div class="t-title">${msg}</div></div>`;
+  s.appendChild(d);
+  setTimeout(()=>{d.style.opacity='0';d.style.transform='translateX(20px)';d.style.transition='all .3s';setTimeout(()=>d.remove(),300);},dur);
+}
+
+async function api(url, method='GET', body=null) {
+  try {
+    const opts={method,headers:{'Content-Type':'application/json'}};
+    if(body) opts.body=JSON.stringify(body);
+    const res=await fetch(url,opts);
+    if(res.status===401){window.location.href='/login';return null;}
+    return await res.json();
+  } catch {return null;}
+}
+
+async function logout() { await fetch('/api/auth/logout',{method:'POST'}); window.location.href='/login'; }
+
+init();
+</script>
+</body>
+</html>

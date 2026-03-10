@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AttendX — Student</title>
+<link rel="stylesheet" href="/static/css/app.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.att-card {
+  position:relative; overflow:hidden;
+}
+.att-card::after {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:3px;
+}
+.att-card.safe::after   { background:var(--green); }
+.att-card.warn::after   { background:var(--amber); }
+.att-card.danger::after { background:var(--red); }
+.today-hero {
+  background:linear-gradient(135deg,#1A56DB 0%,#2563EB 100%);
+  border-radius:var(--radius); padding:28px 32px;
+  color:#fff; margin-bottom:24px; position:relative; overflow:hidden;
+}
+.today-hero::before {
+  content:''; position:absolute; top:-40px; right:-40px;
+  width:200px; height:200px; border-radius:50%;
+  background:rgba(255,255,255,0.07);
+}
+.today-hero::after {
+  content:''; position:absolute; bottom:-50px; right:40px;
+  width:140px; height:140px; border-radius:50%;
+  background:rgba(255,255,255,0.05);
+}
+.hero-status { font-size:44px; margin-bottom:6px; }
+.hero-title  { font-size:22px; font-weight:700; margin-bottom:4px; }
+.hero-sub    { font-size:14px; opacity:0.75; }
+.hero-badge  { display:inline-flex; align-items:center; gap:6px; margin-top:16px;
+               background:rgba(255,255,255,0.15); padding:6px 14px; border-radius:99px;
+               font-size:13px; font-weight:600; }
+.course-progress { padding:16px 20px; border-bottom:1px solid var(--border); }
+.course-progress:last-child { border-bottom:none; }
+.cp-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.cp-code { font-family:'DM Mono',monospace; font-size:11px; color:var(--primary); font-weight:500; }
+.cp-name { font-size:14px; font-weight:600; }
+.cp-stats { font-size:12px; color:var(--text-3); }
+.threshold-line { position:absolute; left:75%; top:0; bottom:0; width:1.5px; background:rgba(0,0,0,0.15); z-index:1; }
+.progress-wrap { position:relative; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ════════ SIDEBAR ════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">🎓</div>
+    <div>
+      <div class="brand-name">AttendX</div>
+      <div class="brand-sub">Student Portal</div>
+    </div>
+  </div>
+
+  <div class="nav-group">
+    <span class="nav-label">My Attendance</span>
+    <div class="nav-link active" data-page="overview"><span class="ni">⬡</span> Overview</div>
+    <div class="nav-link" data-page="courses"><span class="ni">📚</span> By Subject</div>
+    <div class="nav-link" data-page="history"><span class="ni">📅</span> Full History</div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="user-card" onclick="logout()">
+      <div class="avatar" id="sideAvatar">S</div>
+      <div class="user-meta">
+        <div class="u-name" id="sideName">Student</div>
+        <div class="u-role" id="sideRoll">—</div>
+      </div>
+      <span style="margin-left:auto;color:var(--text-3);">→</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ════════ TOPBAR ════════ -->
+<header class="topbar">
+  <div class="page-title" id="pageTitle">My Attendance</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+    <span class="text-sm text-muted" id="topDateLabel"></span>
+    <div class="icon-btn" title="Download Report" onclick="downloadReport()">📥</div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">Logout</button>
+  </div>
+</header>
+
+<!-- ════════ MAIN ════════ -->
+<main class="main">
+
+<!-- ══ PAGE: Overview ══ -->
+<div id="page-overview">
+  <!-- Today status hero -->
+  <div class="today-hero" id="todayHero">
+    <div style="position:relative;z-index:1;">
+      <div class="hero-status" id="heroEmoji">⏳</div>
+      <div class="hero-title" id="heroTitle">Loading…</div>
+      <div class="hero-sub"  id="heroSub"></div>
+      <div class="hero-badge" id="heroBadge">Checking…</div>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="card stat-card">
+      <div class="stat-top"><div class="stat-icon icon-blue">📚</div></div>
+      <div class="stat-value" id="ov-courses">—</div>
+      <div class="stat-label">Enrolled Courses</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-top"><div class="stat-icon icon-green">✅</div></div>
+      <div class="stat-value" id="ov-avg">—</div>
+      <div class="stat-label">Overall Attendance</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-top"><div class="stat-icon icon-amber">⚠️</div></div>
+      <div class="stat-value" id="ov-atrisk">—</div>
+      <div class="stat-label">Courses at Risk</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-top"><div class="stat-icon icon-purple">📅</div></div>
+      <div class="stat-value" id="ov-streak">—</div>
+      <div class="stat-label">Day Streak</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <!-- Per-course attendance bars -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Subject-wise Attendance</span>
+        <span class="badge badge-gray text-xs">75% threshold</span>
+      </div>
+      <div id="subjectBars">
+        <div class="empty" style="padding:32px;"><span class="spinner"></span></div>
+      </div>
+    </div>
+
+    <!-- Attendance trend chart -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Monthly Trend</span></div>
+      <div class="card-body" style="height:280px;"><canvas id="studentTrendChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: By Subject ══ -->
+<div id="page-courses" style="display:none;">
+  <div class="section-head">
+    <div class="section-title">Subject-wise Attendance Detail</div>
+    <span class="text-sm text-muted" id="semLabel"></span>
+  </div>
+
+  <div id="subjectDetailCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">
+    <div class="card card-body"><div class="empty"><span class="spinner"></span></div></div>
+  </div>
+</div>
+
+<!-- ══ PAGE: Full History ══ -->
+<div id="page-history" style="display:none;">
+  <div class="section-head">
+    <div class="section-title">Attendance History</div>
+    <div class="flex gap-2">
+      <select class="select-input" style="width:200px;" id="hist-course-filter" onchange="loadHistory()">
+        <option value="">All Subjects</option>
+      </select>
+      <input type="month" class="input" style="width:150px;" id="hist-month" onchange="loadHistory()"/>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span style="font-size:13px;color:var(--text-3);" id="histCount">—</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Day</th><th>Subject</th><th>Code</th>
+          <th>Entry</th><th>Exit</th><th>Duration</th>
+          <th>Status</th><th>Confidence</th>
+        </tr></thead>
+        <tbody id="historyBody">
+          <tr class="loading-row"><td colspan="9"><span class="spinner"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════════════
+let myProfile = null;
+let myCourses = [];
+let trendChart = null;
+
+// ═══════════════════════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  document.getElementById('topDateLabel').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  const [me, profile] = await Promise.all([
+    api('/api/auth/me'),
+    api('/api/student/profile'),
+  ]);
+
+  myProfile = profile;
+  if (me || profile) {
+    const name = (me||profile)?.name || 'Student';
+    document.getElementById('sideName').textContent = name;
+    document.getElementById('sideAvatar').textContent = name[0].toUpperCase();
+  }
+  if (profile) {
+    document.getElementById('sideRoll').textContent = profile.roll_no || '—';
+    document.getElementById('semLabel').textContent = `${profile.branch} · Semester ${profile.semester}`;
+  }
+
+  loadOverview();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Navigation
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll('.nav-link[data-page]').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    switchPage(el.dataset.page);
+  });
+});
+
+function switchPage(name) {
+  document.querySelectorAll('[id^="page-"]').forEach(p => p.style.display='none');
+  document.getElementById('page-'+name).style.display='';
+  const titles={overview:'My Attendance',courses:'By Subject',history:'Full History'};
+  document.getElementById('pageTitle').textContent = titles[name]||name;
+  if(name==='overview') loadOverview();
+  if(name==='courses')  loadSubjectDetail();
+  if(name==='history')  { initHistoryFilters(); loadHistory(); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Overview
+// ═══════════════════════════════════════════════════════════
+async function loadOverview() {
+  const [summary, courses, recent] = await Promise.all([
+    api('/api/student/summary'),
+    api('/api/student/courses'),
+    api('/api/student/attendance'),
+  ]);
+
+  myCourses = courses || [];
+
+  // Hero card
+  if (summary) {
+    const isPresent = summary.today_status === 'PRESENT';
+    const hero = document.getElementById('todayHero');
+    if (isPresent) {
+      hero.style.background = 'linear-gradient(135deg,#0CAF60 0%,#059652 100%)';
+      document.getElementById('heroEmoji').textContent = '✅';
+      document.getElementById('heroTitle').textContent = 'You\'re checked in today!';
+      document.getElementById('heroBadge').textContent = '● Present';
+    } else {
+      document.getElementById('heroEmoji').textContent = '⚠️';
+      document.getElementById('heroTitle').textContent = 'Not yet checked in today';
+      document.getElementById('heroBadge').textContent = 'Visit the classroom to mark attendance';
+    }
+    document.getElementById('heroSub').textContent = new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    document.getElementById('ov-courses').textContent = summary.total_courses || '—';
+  }
+
+  // Per-course stats
+  if (courses) {
+    const courseStats = courses.map(c => {
+      const total = c.total_classes || 1;
+      const att   = c.attended || 0;
+      return { ...c, pct: Math.round(att/total*100) };
+    });
+
+    const avgs    = courseStats.map(c=>c.pct);
+    const overall = avgs.length ? Math.round(avgs.reduce((a,b)=>a+b,0)/avgs.length) : 0;
+    const atRisk  = courseStats.filter(c=>c.pct<75).length;
+
+    document.getElementById('ov-avg').textContent    = overall + '%';
+    document.getElementById('ov-atrisk').textContent = atRisk;
+    document.getElementById('ov-streak').textContent = calcStreak(recent||[]) + 'd';
+
+    renderSubjectBars(courseStats);
+  }
+
+  // Trend chart
+  if (recent) renderTrend(recent);
+}
+
+function calcStreak(records) {
+  const today = new Date(); let streak = 0;
+  for (let i=0; i<30; i++) {
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    const dStr = d.toISOString().slice(0,10);
+    if (records.some(r => r.entry_time?.startsWith(dStr))) streak++;
+    else if (i>0) break;
+  }
+  return streak;
+}
+
+function renderSubjectBars(courses) {
+  const el = document.getElementById('subjectBars');
+  if (!courses.length) {
+    el.innerHTML = '<div class="empty" style="padding:32px;"><span class="e-icon">📚</span><div class="e-title">No enrolled courses</div></div>';
+    return;
+  }
+  el.innerHTML = courses.map(c => {
+    const pct   = c.pct;
+    const fill  = pct>=75?'fill-green':pct>=50?'fill-amber':'fill-red';
+    const color = pct>=75?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+    const warn  = pct < 75;
+    return `<div class="course-progress">
+      <div class="cp-header">
+        <div>
+          <div class="cp-code">${c.code}</div>
+          <div class="cp-name">${c.name}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${color};">${pct}%</div>
+          <div class="cp-stats">${c.attended||0}/${c.total_classes||0} classes</div>
+        </div>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress" style="height:8px;">
+          <div class="progress-fill ${fill}" style="width:${pct}%"></div>
+        </div>
+        <div class="threshold-line" title="75% threshold"></div>
+      </div>
+      ${warn ? `<div style="margin-top:6px;font-size:11px;color:var(--red);font-weight:500;">⚠ Below minimum — need ${Math.ceil((c.total_classes||0)*0.75 - (c.attended||0))} more classes</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderTrend(records) {
+  // Group by date (last 30 days)
+  const today = new Date();
+  const byDate = {};
+  for (let i=29;i>=0;i--) {
+    const d = new Date(today); d.setDate(d.getDate()-i);
+    byDate[d.toISOString().slice(0,10)] = 0;
+  }
+  records.forEach(r => {
+    const d = (r.entry_time||'').slice(0,10);
+    if (d in byDate) byDate[d]++;
+  });
+
+  const ctx = document.getElementById('studentTrendChart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+  const labels = Object.keys(byDate).map(d => d.slice(5));
+  const data   = Object.values(byDate);
+  trendChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Classes Attended',
+        data,
+        backgroundColor: data.map(v => v>0 ? 'rgba(12,175,96,0.6)' : 'rgba(229,57,53,0.2)'),
+        borderRadius: 4, borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#9CA3AF', font: { size: 9 }, maxRotation: 0, maxTicksLimit: 8 } },
+        y: { grid: { color: '#F3F4F6' }, ticks: { color: '#9CA3AF', font: { size: 10 } }, min: 0, stepSize: 1 },
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  By Subject
+// ═══════════════════════════════════════════════════════════
+async function loadSubjectDetail() {
+  const courses = await api('/api/student/courses') || [];
+  myCourses = courses;
+  const el = document.getElementById('subjectDetailCards');
+  if (!courses.length) {
+    el.innerHTML = '<div class="card card-body"><div class="empty"><span class="e-icon">📚</span><div class="e-title">No enrolled courses</div></div></div>';
+    return;
+  }
+  el.innerHTML = courses.map(c => {
+    const total = c.total_classes || 1;
+    const att   = c.attended || 0;
+    const pct   = Math.round(att/total*100);
+    const cls   = pct>=75?'safe':pct>=50?'warn':'danger';
+    const color = pct>=75?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+    const fill  = pct>=75?'fill-green':pct>=50?'fill-amber':'fill-red';
+    return `<div class="card att-card ${cls}" style="padding:0;">
+      <div style="padding:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--primary);margin-bottom:4px;">${c.code}</div>
+            <div style="font-size:15px;font-weight:700;">${c.name}</div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:2px;">👨‍🏫 ${c.faculty_name||'TBD'}</div>
+          </div>
+          <div style="text-align:center;min-width:60px;">
+            <div style="font-family:'DM Mono',monospace;font-size:28px;font-weight:700;color:${color};line-height:1;">${pct}%</div>
+            <div style="font-size:10px;color:var(--text-3);font-weight:500;">ATTENDANCE</div>
+          </div>
+        </div>
+        <div class="progress-wrap" style="margin-bottom:10px;">
+          <div class="progress" style="height:8px;">
+            <div class="progress-fill ${fill}" style="width:${pct}%"></div>
+          </div>
+          <div class="threshold-line"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;">
+          <div style="text-align:center;padding:8px;background:var(--surface-2);border-radius:6px;">
+            <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--green);">${att}</div>
+            <div style="font-size:10px;color:var(--text-3);">Attended</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:var(--surface-2);border-radius:6px;">
+            <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--red);">${total-att}</div>
+            <div style="font-size:10px;color:var(--text-3);">Missed</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:var(--surface-2);border-radius:6px;">
+            <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--text-1);">${total}</div>
+            <div style="font-size:10px;color:var(--text-3);">Total</div>
+          </div>
+        </div>
+        ${pct<75 ? `<div style="margin-top:12px;padding:8px 12px;background:var(--red-soft);border-radius:6px;font-size:12px;color:var(--red);font-weight:500;">
+          ⚠ You need to attend ${Math.max(0,Math.ceil(total*0.75)-att)} more classes to reach 75%
+        </div>` : `<div style="margin-top:12px;padding:8px 12px;background:var(--green-soft);border-radius:6px;font-size:12px;color:var(--green);font-weight:500;">
+          ✓ You can miss up to ${Math.floor(att - total*0.75)} more classes and still meet 75%
+        </div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  History
+// ═══════════════════════════════════════════════════════════
+async function initHistoryFilters() {
+  const today = new Date();
+  document.getElementById('hist-month').value = today.toISOString().slice(0,7);
+  if (myCourses.length) {
+    document.getElementById('hist-course-filter').innerHTML =
+      '<option value="">All Subjects</option>' +
+      myCourses.map(c => `<option value="${c.id}">${c.code} — ${c.name}</option>`).join('');
+  }
+}
+
+async function loadHistory() {
+  const month  = document.getElementById('hist-month').value;
+  const cid    = document.getElementById('hist-course-filter').value;
+  const from   = month ? month+'-01' : '';
+  const toDate = month ? new Date(month.slice(0,4), parseInt(month.slice(5))-1+1, 0).toISOString().slice(0,10) : '';
+  let url = `/api/student/attendance?from=${from}&to=${toDate}`;
+  if (cid) url += `&course_id=${cid}`;
+  const records = await api(url) || [];
+  document.getElementById('histCount').textContent = `${records.length} records found`;
+  const tbody = document.getElementById('historyBody');
+  if (!records.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><span class="e-icon">📅</span><div class="e-title">No records</div><div class="e-sub">No attendance found for this period</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = records.map(r => {
+    const entryDt = r.entry_time ? new Date(r.entry_time) : null;
+    const exitDt  = r.exit_time  ? new Date(r.exit_time)  : null;
+    let dur = '—';
+    if (entryDt && exitDt) {
+      const mins = Math.round((exitDt-entryDt)/60000);
+      dur = mins>=60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`;
+    }
+    return `<tr class="att-${(r.status||'present').toLowerCase()}">
+      <td class="td-mono">${r.date||'—'}</td>
+      <td class="text-sm text-muted">${entryDt ? entryDt.toLocaleDateString('en-IN',{weekday:'short'}) : '—'}</td>
+      <td style="font-weight:500;">${r.course_name||'—'}</td>
+      <td class="td-mono">${r.course_code||'—'}</td>
+      <td class="td-mono">${entryDt ? entryDt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+      <td class="td-mono">${exitDt ? exitDt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+      <td class="td-mono text-sm">${dur}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td class="td-mono text-sm">${r.recognition_confidence ? (r.recognition_confidence*100).toFixed(1)+'%' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Utils
+// ═══════════════════════════════════════════════════════════
+function statusBadge(s) {
+  const m={PRESENT:'badge-green',LATE:'badge-amber',ABSENT:'badge-red'};
+  return `<span class="badge ${m[s]||'badge-gray'}">${s||'—'}</span>`;
+}
+
+function downloadReport() { toast('Generating attendance report…','📥'); }
+
+function toast(msg, icon='ℹ️', dur=3500) {
+  const s=document.getElementById('toastStack');
+  const d=document.createElement('div');
+  d.className='toast';
+  d.innerHTML=`<span class="t-icon">${icon}</span><div><div class="t-title">${msg}</div></div>`;
+  s.appendChild(d);
+  setTimeout(()=>{d.style.opacity='0';d.style.transform='translateX(20px)';d.style.transition='all .3s';setTimeout(()=>d.remove(),300);},dur);
+}
+
+async function api(url, method='GET', body=null) {
+  try {
+    const opts={method,headers:{'Content-Type':'application/json'}};
+    if(body) opts.body=JSON.stringify(body);
+    const res=await fetch(url,opts);
+    if(res.status===401){window.location.href='/login';return null;}
+    return await res.json();
+  } catch {return null;}
+}
+
+async function logout() { await fetch('/api/auth/logout',{method:'POST'}); window.location.href='/login'; }
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# ── Web server ──────────────────────────────────────────────
+flask>=3.0.0
+loguru>=0.7.0
+
+# ── Computer vision & ML ────────────────────────────────────
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# ── Face recognition (optional but recommended) ─────────────
+insightface>=0.7.3           # RetinaFace + ArcFace
+onnxruntime>=1.16.0          # CPU inference (use onnxruntime-gpu for GPU)
+# faiss-cpu>=1.7.4           # FAISS vector search (uncomment if available)
+
+# ── Anti-spoofing (optional) ─────────────────────────────────
+mediapipe>=0.10.0            # FaceMesh for liveness detection
+
+# ── Data export ──────────────────────────────────────────────
+openpyxl>=3.1.0              # Excel export
+pandas>=2.0.0                # Data analytics
+
+# ── Dev / testing (optional) ─────────────────────────────────
+# pytest>=7.0.0
+# black>=23.0.0
