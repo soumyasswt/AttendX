@@ -3,6 +3,7 @@
   "builds": [
     { "src": "web_app/server.py", "use": "@vercel/python" }
   ],
+  "installCommand": "pip install -r requirements-min.txt",
   "routes": [
     { "src": "/(.*)", "dest": "web_app/server.py" }
   ],

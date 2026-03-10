@@ -1,0 +1,6 @@
+flask>=3.0.0
+loguru>=0.7.0
+gunicorn>=20.1.0
+numpy>=1.24.0
+# opencv-python is large and not needed on serverless; exports can be disabled
+# insightface, onnxruntime, mediapipe are optional for ML

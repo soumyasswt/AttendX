@@ -33,11 +33,22 @@ http://localhost:5000
    ```
 
 #### Vercel
-This repo includes `vercel.json` to run the Flask app as a Python serverless function. After linking the repo in the Vercel dashboard:
-- Build command: `pip install -r requirements.txt`
-- Vercel will use `@vercel/python` to serve `web_app/server.py`.
+Serverless functions on Vercel have a **500 MB dependency size limit**. The full set of packages required for CV/ML (OpenCV, InsightFace, ONNX, etc.) exceeds this, so a straight `requirements.txt` build will fail as you saw.
 
-Alternatively you can deploy via Docker or use the Render service above for a full-featured server.
+To deploy on Vercel:
+1. Use the provided `vercel.json` and `requirements-min.txt` (minimal web-only libs).
+2. Link the repo in Vercel and let it build; the install command now runs:
+   ```bash
+   pip install -r requirements-min.txt
+   ```
+3. The CV pipeline imports are wrapped in try/except, so the app will start without camera/ML features when those libraries are absent.
+
+> **Note:** you won’t be able to use the camera/face‑recognition features on Vercel due to these limits. For full functionality, run on a traditional host (Render, Docker, EC2, etc.).
+
+### Environment variables
+- `PORT` (default 5000) – allows hosts to specify port
+- `HOST` (default 0.0.0.0)
+- `DATABASE_PATH` (path to sqlite file; default `data/attendx.db`)
 
 The app binds to `$PORT` automatically and persists the SQLite DB at `DATABASE_PATH` (use a writable path on the host).
 
